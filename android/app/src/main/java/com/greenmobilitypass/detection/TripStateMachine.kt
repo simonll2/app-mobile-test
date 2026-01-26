@@ -16,6 +16,29 @@ import java.util.Locale
  * - End trip: ENTER transition for STILL activity (user stopped moving)
  * - Minimum trip duration: 10 seconds (to avoid false positives)
  * - Distance = duration_hours * estimated_speed
+ *
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * RESPONSIBILITY SEPARATION WITH TripDetectionService:
+ * ═══════════════════════════════════════════════════════════════════════════════
+ *
+ * TripStateMachine (this class):
+ * - Pure business logic for trip state transitions
+ * - NO knowledge of timers, delays, or GPS management
+ * - Processes transitions when forwarded by TripDetectionService
+ *
+ * TripDetectionService:
+ * - Manages 10s movement confirmation timer (before starting GPS)
+ * - Manages 60s stop confirmation timer (before ending trip)
+ * - Controls when transitions are forwarded to the FSM
+ * - Calls confirmTripEnd() only after 60s stop confirmation
+ *
+ * IMPORTANT:
+ * - TripStateMachine does NOT end trips on EXIT transitions
+ * - Trip ending is triggered ONLY by:
+ *   1. ENTER STILL (forwarded by TripDetectionService)
+ *   2. confirmTripEnd() after deferred 60s stop confirmation
+ * - This design prevents trip fragmentation from noisy transitions
+ * ═══════════════════════════════════════════════════════════════════════════════
  */
 class TripStateMachine {
 
@@ -159,45 +182,12 @@ class TripStateMachine {
             }
         } else {
             // EXIT transition - user exited current activity
-            // For testing: end trip immediately when exiting a moving activity
-            if (activityType == currentTripActivity && isMovingActivity(activityType)) {
-                Log.d(TAG, "🛑 EXIT detected for ${activityType.name} - Ending trip (for testing)")
-                
-                // Ensure tripEndTime is different from tripStartTime
-                // Add at least 1 second to avoid identical timestamps
-                val minEndTime = tripStartTime + 1000L
-                tripEndTime = maxOf(currentTimeMs, minEndTime)
-                
-                val formattedEndTime = formatTimestamp(tripEndTime)
-                val durationMs = tripEndTime - tripStartTime
-                
-                Log.d(TAG, "   Trip start: $formattedStartTime (${tripStartTime}ms)")
-                Log.d(TAG, "   Trip end: $formattedEndTime (${tripEndTime}ms)")
-                Log.d(TAG, "   Duration: ${durationMs}ms (${durationMs / 1000}s)")
-                
-                // Verify we have a valid duration before finalizing
-                if (tripEndTime > tripStartTime) {
-                    Log.d(TAG, "   ✅ Valid duration, proceeding to finalize")
-                    try {
-                        currentState = TripState.ENDED
-                        finalizeTrip()
-                    } catch (e: Exception) {
-                        Log.e(TAG, "❌ CRITICAL: Error in finalizeTrip() from EXIT handler: ${e.message}", e)
-                        e.printStackTrace()
-                        resetState()
-                        currentState = TripState.IDLE
-                    }
-                } else {
-                    Log.e(TAG, "   ❌ Invalid trip end time, skipping finalization")
-                    Log.e(TAG, "   tripEndTime ($tripEndTime) <= tripStartTime ($tripStartTime)")
-                    resetState()
-                    currentState = TripState.IDLE
-                }
-            } else if (activityType == currentTripActivity) {
-                Log.d(TAG, "   🚪 Exited ${activityType.name}, but not a moving activity - continuing")
-            } else {
-                Log.d(TAG, "   ℹ️  Exited different activity (${activityType.name}), continuing trip")
-            }
+            // NOTE: TripStateMachine does NOT end trips on EXIT transitions.
+            // Trip ending is triggered ONLY by:
+            // - ENTER STILL (forwarded by TripDetectionService)
+            // - confirmTripEnd() after deferred stop confirmation (60s)
+            // This prevents trip fragmentation due to noisy transitions, tunnels, or signal loss.
+            Log.d(TAG, "   🚪 EXIT ${activityType.name} - Ignoring (trip continues)")
         }
     }
 
