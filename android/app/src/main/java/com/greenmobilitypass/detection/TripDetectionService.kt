@@ -5,7 +5,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
@@ -35,6 +37,10 @@ class TripDetectionService : LifecycleService() {
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "trip_detection_channel"
 
+        // Confirmation delays for GPS management
+        private const val MOVING_CONFIRM_MS = 10_000L  // 10 seconds to confirm movement before GPS
+        private const val STOP_CONFIRM_MS = 60_000L   // 60 seconds to confirm stop before ending trip
+
         @Volatile
         private var instance: TripDetectionService? = null
 
@@ -56,6 +62,19 @@ class TripDetectionService : LifecycleService() {
 
     // Track when service started to ignore initial STILL detection
     private var serviceStartTime: Long = 0
+
+    // Handler for confirmation timers
+    private val confirmationHandler = Handler(Looper.getMainLooper())
+
+    // GPS confirmation state flags
+    private var isMovingConfirmationPending = false  // Waiting for 10s movement confirmation
+    private var isTripConfirmed = false              // Trip confirmed, GPS can run
+    private var isStopConfirmationPending = false    // Waiting for 60s stop confirmation
+    private var lastMovingActivity: DetectedActivityType? = null  // Track last moving activity for confirmation
+
+    // Runnables for confirmation timers (stored for cancellation)
+    private var movingConfirmationRunnable: Runnable? = null
+    private var stopConfirmationRunnable: Runnable? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -107,6 +126,9 @@ class TripDetectionService : LifecycleService() {
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "Service onDestroy")
+
+        // Reset GPS confirmation state and cancel all timers
+        resetGpsConfirmationState()
 
         // Stop GPS tracking
         try {
@@ -326,49 +348,66 @@ class TripDetectionService : LifecycleService() {
             e.printStackTrace()
         }
         
-        // Manage GPS tracking based on activity transitions
+        // Manage GPS tracking with confirmation logic
         try {
             if (isEnter && isMovingActivity(detectedType)) {
-                // Starting a moving activity - start GPS tracking
-                Log.d(TAG, "📍 Starting GPS tracking for moving activity")
-                gpsTracker?.startTracking()
-                
-                // Notify React Native of GPS start
-                try {
-                    val gpsLogData = mapOf<String, Any>(
-                        "event" to "gps_start",
-                        "activity" to detectedType.name,
-                        "timestamp" to currentTimeMs,
-                        "formattedTime" to formattedTime
-                    )
-                    onGpsLogListener?.invoke(gpsLogData)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error notifying GPS start: ${e.message}")
+                // User started moving - handle based on current state
+                Log.d(TAG, "📍 Movement detected: ${detectedType.name}")
+
+                if (isStopConfirmationPending) {
+                    // User was waiting for stop confirmation but started moving again
+                    // Cancel the stop confirmation, trip continues
+                    Log.d(TAG, "🔄 Cancelling stop confirmation - user resumed moving")
+                    cancelStopConfirmation()
+
+                    // Start new movement confirmation (GPS will start after 10s if still moving)
+                    startMovingConfirmation(detectedType, currentTimeMs)
+                } else if (!isTripConfirmed && !isMovingConfirmationPending) {
+                    // New movement, start confirmation timer
+                    startMovingConfirmation(detectedType, currentTimeMs)
+                } else if (isMovingConfirmationPending) {
+                    // Already waiting for confirmation, update the activity type
+                    Log.d(TAG, "📍 Movement confirmation pending, updating activity to ${detectedType.name}")
+                    lastMovingActivity = detectedType
+                } else {
+                    // Trip already confirmed, GPS is running, just log activity change
+                    Log.d(TAG, "📍 Trip already confirmed, GPS continues")
                 }
-            } else if ((isEnter && detectedType == DetectedActivityType.STILL) || (!isEnter && isMovingActivity(detectedType))) {
-                // Stop GPS when entering STILL (trip end) or exiting a moving activity
-                Log.d(TAG, "📍 Stopping GPS tracking")
-                gpsTracker?.stopTracking()
-                
-                // Notify React Native of GPS stop
-                try {
-                    val gpsLogData = mapOf<String, Any>(
-                        "event" to "gps_stop",
-                        "activity" to detectedType.name,
-                        "timestamp" to currentTimeMs,
-                        "formattedTime" to formattedTime
-                    )
-                    onGpsLogListener?.invoke(gpsLogData)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error notifying GPS stop: ${e.message}")
+
+            } else if (isEnter && detectedType == DetectedActivityType.STILL) {
+                // User stopped moving - handle with deferred trip end
+                Log.d(TAG, "📍 STILL detected - handling stop")
+
+                // Cancel any pending movement confirmation (user stopped before 10s)
+                if (isMovingConfirmationPending) {
+                    Log.d(TAG, "🚫 Cancelling movement confirmation (STILL before confirmation)")
+                    cancelMovingConfirmation()
+                    // Don't start stop confirmation if trip wasn't confirmed yet
+                    notifyGpsEvent("gps_confirmation_cancelled", "STILL", currentTimeMs)
+                } else if (isTripConfirmed || stateMachine.isTrackingTrip()) {
+                    // Trip was confirmed and GPS was running - start stop confirmation
+                    startStopConfirmation(currentTimeMs)
+                } else {
+                    Log.d(TAG, "📍 STILL detected but no active trip to stop")
                 }
+
+            } else if (!isEnter && isMovingActivity(detectedType)) {
+                // EXIT from moving activity - just log, don't stop GPS
+                Log.d(TAG, "📍 EXIT from ${detectedType.name} - GPS state unchanged")
             }
         } catch (e: Exception) {
             Log.e(TAG, "⚠️  Error managing GPS tracking: ${e.message}")
         }
 
-        Log.d(TAG, "🔄 Forwarding to state machine...")
-        stateMachine.processTransition(detectedType, isEnter, elapsedTimeNanos)
+        // Forward to state machine ONLY if not in stop confirmation pending
+        // This prevents the state machine from ending the trip immediately on STILL
+        if (isEnter && detectedType == DetectedActivityType.STILL && (isTripConfirmed || isMovingConfirmationPending)) {
+            // Don't forward STILL to state machine yet - wait for confirmation
+            Log.d(TAG, "⏸️  Deferring STILL transition to state machine (waiting for stop confirmation)")
+        } else {
+            Log.d(TAG, "🔄 Forwarding to state machine...")
+            stateMachine.processTransition(detectedType, isEnter, elapsedTimeNanos)
+        }
         Log.d(TAG, "═══════════════════════════════════════════════════════")
     }
 
@@ -376,6 +415,187 @@ class TripDetectionService : LifecycleService() {
         return activityType != DetectedActivityType.STILL &&
                activityType != DetectedActivityType.UNKNOWN
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // GPS CONFIRMATION LOGIC - Movement confirmation & deferred stop
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Start movement confirmation timer (10 seconds).
+     * GPS will only start if user is still moving after the delay.
+     */
+    private fun startMovingConfirmation(activityType: DetectedActivityType, currentTimeMs: Long) {
+        val formattedTime = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault())
+            .format(java.util.Date(currentTimeMs))
+
+        Log.d(TAG, "⏳ Starting movement confirmation timer (${MOVING_CONFIRM_MS / 1000}s)")
+        Log.d(TAG, "   Activity: ${activityType.name}")
+        Log.d(TAG, "   Timestamp: $formattedTime")
+
+        // Cancel any pending confirmation
+        cancelMovingConfirmation()
+
+        isMovingConfirmationPending = true
+        lastMovingActivity = activityType
+
+        // Notify React Native
+        notifyGpsEvent("gps_confirmation_started", activityType.name, currentTimeMs)
+
+        movingConfirmationRunnable = Runnable {
+            Log.d(TAG, "⏰ Movement confirmation timer completed")
+
+            // Check if still in a moving state and trip is active
+            if (stateMachine.isTrackingTrip() && isMovingConfirmationPending) {
+                Log.d(TAG, "✅ Movement CONFIRMED - Starting GPS tracking")
+                isMovingConfirmationPending = false
+                isTripConfirmed = true
+
+                // Start GPS now
+                startGpsIfConfirmed()
+
+                // Notify React Native
+                notifyGpsEvent("gps_start", lastMovingActivity?.name ?: "UNKNOWN", System.currentTimeMillis())
+            } else {
+                Log.d(TAG, "❌ Movement NOT confirmed (state changed during wait)")
+                Log.d(TAG, "   isTrackingTrip: ${stateMachine.isTrackingTrip()}")
+                Log.d(TAG, "   isMovingConfirmationPending: $isMovingConfirmationPending")
+                isMovingConfirmationPending = false
+            }
+        }
+
+        confirmationHandler.postDelayed(movingConfirmationRunnable!!, MOVING_CONFIRM_MS)
+    }
+
+    /**
+     * Cancel any pending movement confirmation timer.
+     */
+    private fun cancelMovingConfirmation() {
+        movingConfirmationRunnable?.let {
+            confirmationHandler.removeCallbacks(it)
+            Log.d(TAG, "🚫 Movement confirmation timer cancelled")
+        }
+        movingConfirmationRunnable = null
+        isMovingConfirmationPending = false
+    }
+
+    /**
+     * Start stop confirmation timer (60 seconds).
+     * GPS stops immediately, but trip only ends if user stays STILL.
+     */
+    private fun startStopConfirmation(currentTimeMs: Long) {
+        val formattedTime = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault())
+            .format(java.util.Date(currentTimeMs))
+
+        Log.d(TAG, "⏳ Starting stop confirmation timer (${STOP_CONFIRM_MS / 1000}s)")
+        Log.d(TAG, "   Timestamp: $formattedTime")
+
+        // Cancel any pending stop confirmation (in case of rapid transitions)
+        cancelStopConfirmation()
+
+        isStopConfirmationPending = true
+
+        // IMMEDIATELY stop GPS to save battery
+        stopGpsImmediately()
+
+        // Notify React Native
+        notifyGpsEvent("gps_stop_pending_confirmation", "STILL", currentTimeMs)
+
+        stopConfirmationRunnable = Runnable {
+            Log.d(TAG, "⏰ Stop confirmation timer completed")
+
+            if (isStopConfirmationPending) {
+                Log.d(TAG, "✅ Stop CONFIRMED - Finalizing trip")
+                isStopConfirmationPending = false
+                isTripConfirmed = false
+
+                // Now actually end the trip via state machine
+                stateMachine.confirmTripEnd()
+
+                // Notify React Native
+                notifyGpsEvent("trip_end_confirmed", "STILL", System.currentTimeMillis())
+            } else {
+                Log.d(TAG, "❌ Stop NOT confirmed (user started moving again)")
+            }
+        }
+
+        confirmationHandler.postDelayed(stopConfirmationRunnable!!, STOP_CONFIRM_MS)
+    }
+
+    /**
+     * Cancel any pending stop confirmation timer.
+     * Called when user starts moving again during the 60s wait.
+     */
+    private fun cancelStopConfirmation() {
+        stopConfirmationRunnable?.let {
+            confirmationHandler.removeCallbacks(it)
+            Log.d(TAG, "🚫 Stop confirmation timer cancelled (user resumed moving)")
+        }
+        stopConfirmationRunnable = null
+        isStopConfirmationPending = false
+    }
+
+    /**
+     * Start GPS tracking only if trip is confirmed.
+     */
+    private fun startGpsIfConfirmed() {
+        if (isTripConfirmed) {
+            try {
+                gpsTracker?.startTracking()
+                Log.d(TAG, "📍 GPS tracking started (trip confirmed)")
+            } catch (e: Exception) {
+                Log.e(TAG, "⚠️ Error starting GPS: ${e.message}")
+            }
+        } else {
+            Log.d(TAG, "📍 GPS NOT started (trip not yet confirmed)")
+        }
+    }
+
+    /**
+     * Stop GPS tracking immediately (no delay).
+     */
+    private fun stopGpsImmediately() {
+        try {
+            gpsTracker?.stopTracking()
+            Log.d(TAG, "📍 GPS tracking stopped immediately")
+        } catch (e: Exception) {
+            Log.e(TAG, "⚠️ Error stopping GPS: ${e.message}")
+        }
+    }
+
+    /**
+     * Notify React Native about GPS events.
+     */
+    private fun notifyGpsEvent(event: String, activity: String, timestamp: Long) {
+        try {
+            val formattedTime = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault())
+                .format(java.util.Date(timestamp))
+            val gpsLogData = mapOf<String, Any>(
+                "event" to event,
+                "activity" to activity,
+                "timestamp" to timestamp,
+                "formattedTime" to formattedTime
+            )
+            onGpsLogListener?.invoke(gpsLogData)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error notifying GPS event: ${e.message}")
+        }
+    }
+
+    /**
+     * Reset all GPS confirmation states.
+     * Called when service is destroyed or detection is stopped.
+     */
+    private fun resetGpsConfirmationState() {
+        cancelMovingConfirmation()
+        cancelStopConfirmation()
+        isMovingConfirmationPending = false
+        isTripConfirmed = false
+        isStopConfirmationPending = false
+        lastMovingActivity = null
+        Log.d(TAG, "🔄 GPS confirmation state reset")
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
 
     private fun saveTrip(trip: DetectedTrip) {
         Log.d(TAG, "═══════════════════════════════════════════════════════")
