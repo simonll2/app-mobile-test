@@ -427,6 +427,45 @@ class TripStateMachine {
     fun isTrackingTrip(): Boolean = currentState == TripState.IN_TRIP
 
     /**
+     * Confirm trip end after deferred stop confirmation (called by TripDetectionService).
+     * This method is called after the 60-second stop confirmation period.
+     */
+    fun confirmTripEnd() {
+        Log.d(TAG, "═══════════════════════════════════════════════════════")
+        Log.d(TAG, "🛑 CONFIRM TRIP END (deferred)")
+        Log.d(TAG, "   Current state: $currentState")
+
+        if (currentState == TripState.IN_TRIP) {
+            val currentTimeMs = System.currentTimeMillis()
+
+            // Ensure tripEndTime is different from tripStartTime
+            val minEndTime = tripStartTime + 1000L
+            tripEndTime = maxOf(currentTimeMs, minEndTime)
+
+            val formattedEndTime = formatTimestamp(tripEndTime)
+            val formattedStartTime = formatTimestamp(tripStartTime)
+            val durationMs = tripEndTime - tripStartTime
+
+            Log.d(TAG, "   Trip start: $formattedStartTime (${tripStartTime}ms)")
+            Log.d(TAG, "   Trip end: $formattedEndTime (${tripEndTime}ms)")
+            Log.d(TAG, "   Duration: ${durationMs}ms (${durationMs / 1000}s)")
+
+            if (tripEndTime > tripStartTime) {
+                Log.d(TAG, "   ✅ Valid duration, proceeding to finalize")
+                currentState = TripState.ENDED
+                finalizeTrip()
+            } else {
+                Log.e(TAG, "   ❌ Invalid trip end time, skipping finalization")
+                resetState()
+                currentState = TripState.IDLE
+            }
+        } else {
+            Log.w(TAG, "   ⚠️  Not in IN_TRIP state, ignoring confirmTripEnd")
+        }
+        Log.d(TAG, "═══════════════════════════════════════════════════════")
+    }
+
+    /**
      * Add a GPS point to the current trip
      */
     fun addGpsPoint(latitude: Double, longitude: Double, accuracy: Float = 0f) {
