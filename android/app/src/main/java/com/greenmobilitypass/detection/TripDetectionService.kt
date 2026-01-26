@@ -384,8 +384,8 @@ class TripDetectionService : LifecycleService() {
                     cancelMovingConfirmation()
                     // Don't start stop confirmation if trip wasn't confirmed yet
                     notifyGpsEvent("gps_confirmation_cancelled", "STILL", currentTimeMs)
-                } else if (isTripConfirmed || stateMachine.isTrackingTrip()) {
-                    // Trip was confirmed and GPS was running - start stop confirmation
+                } else if (!isStopConfirmationPending && stateMachine.isTrackingTrip()) {
+                    // Trip is active - start stop confirmation (only if not already pending)
                     startStopConfirmation(currentTimeMs)
                 } else {
                     Log.d(TAG, "📍 STILL detected but no active trip to stop")
@@ -400,10 +400,12 @@ class TripDetectionService : LifecycleService() {
         }
 
         // Forward to state machine ONLY if not in stop confirmation pending
-        // This prevents the state machine from ending the trip immediately on STILL
-        if (isEnter && detectedType == DetectedActivityType.STILL && (isTripConfirmed || isMovingConfirmationPending)) {
-            // Don't forward STILL to state machine yet - wait for confirmation
-            Log.d(TAG, "⏸️  Deferring STILL transition to state machine (waiting for stop confirmation)")
+        // RULE: While stop confirmation is pending, NO STILL should reach the FSM
+        // TripDetectionService controls WHEN the FSM receives STILL (manages timers)
+        // TripStateMachine handles trip logic (no delay knowledge)
+        if (isEnter && detectedType == DetectedActivityType.STILL && isStopConfirmationPending) {
+            // Defer STILL: do NOT forward to state machine yet
+            Log.d(TAG, "⏸️ Deferring STILL transition (stop confirmation pending)")
         } else {
             Log.d(TAG, "🔄 Forwarding to state machine...")
             stateMachine.processTransition(detectedType, isEnter, elapsedTimeNanos)
@@ -418,6 +420,19 @@ class TripDetectionService : LifecycleService() {
 
     // ═══════════════════════════════════════════════════════════════════════════
     // GPS CONFIRMATION LOGIC - Movement confirmation & deferred stop
+    // ═══════════════════════════════════════════════════════════════════════════
+    //
+    // RESPONSIBILITY SEPARATION:
+    // - TripDetectionService: Decides WHEN the FSM can receive a STILL transition
+    //   - Manages 10s movement confirmation timer (before GPS starts)
+    //   - Manages 60s stop confirmation timer (before trip ends)
+    //   - Controls GPS start/stop
+    //
+    // - TripStateMachine: Handles trip business logic
+    //   - NO knowledge of timers or delays
+    //   - Processes transitions when forwarded by TripDetectionService
+    //   - confirmTripEnd() is called ONLY after 60s stop confirmation
+    //
     // ═══════════════════════════════════════════════════════════════════════════
 
     /**
