@@ -13,6 +13,13 @@ import {
   PendingJourneysScreen,
   PendingJourneyDetailScreen,
   ValidatedJourneysScreen,
+  ValidatedJourneyDetailScreen,
+  CO2HistoryScreen,
+  DistanceHistoryScreen,
+  PurchasedItemsScreen,
+  BadgeDetailScreen,
+  UserStatsScreen,
+  TeamMembersScreen,
 } from '../screens';
 import {ActivityIndicator, View, StyleSheet} from 'react-native';
 import {
@@ -29,7 +36,26 @@ export type RootStackParamList = {
   MainTabs: undefined;
   PendingJourneys: undefined;
   PendingJourneyDetail: {journeyId: number};
-  ValidatedJourneys: undefined;
+  ValidatedJourneys: {transportFilter?: string} | undefined;
+  ValidatedJourneyDetail: {journey: any};
+  CO2History: undefined;
+  DistanceHistory: undefined;
+  PurchasedItems: undefined;
+  BadgeDetail: {badge: any};
+  UserStats: {
+    userId: number;
+    username: string;
+    firstname: string;
+    lastname: string;
+    rank: number;
+    score: number;
+  };
+  TeamMembers: {
+    teamId: number;
+    teamName: string;
+    teamScore: number;
+    teamRank: number;
+  };
 };
 
 export type TabParamList = {
@@ -43,15 +69,21 @@ export type TabParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
-// Screen options
+// Screen options for sub-screens
 const screenOptions = {
   headerStyle: {
-    backgroundColor: '#2E7D32',
+    backgroundColor: '#fff',
+    elevation: 0,
+    shadowOpacity: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
-  headerTintColor: '#fff',
+  headerTintColor: '#1a1a1a',
   headerTitleStyle: {
     fontWeight: '600' as const,
+    fontSize: 17,
   },
+  headerBackTitleVisible: false,
 };
 
 // Tab Bar Icon Components
@@ -87,27 +119,32 @@ function TabNavigator() {
   return (
     <Tab.Navigator
       screenOptions={{
-        headerStyle: {
-          backgroundColor: '#2E7D32',
-        },
-        headerTintColor: '#fff',
-        headerTitleStyle: {
-          fontWeight: '600' as const,
-        },
+        headerShown: false,
         tabBarActiveTintColor: '#2E7D32',
         tabBarInactiveTintColor: '#999',
         tabBarStyle: {
-          paddingTop: 8,
+          backgroundColor: '#fff',
+          borderTopWidth: 0,
+          elevation: 20,
+          shadowColor: '#000',
+          shadowOffset: {width: 0, height: -4},
+          shadowOpacity: 0.08,
+          shadowRadius: 12,
+          height: 85,
+          paddingTop: 10,
+          paddingBottom: 25,
         },
         tabBarLabelStyle: {
           fontSize: 11,
+          fontWeight: '500',
+          marginTop: 4,
         },
       }}>
       <Tab.Screen
         name="Dashboard"
         component={DashboardScreen}
         options={{
-          title: 'Dashboard',
+          title: 'Accueil',
           tabBarIcon: DashboardIcon,
         }}
       />
@@ -115,7 +152,7 @@ function TabNavigator() {
         name="Leaderboard"
         component={LeaderboardScreen}
         options={{
-          title: 'Leaderboard',
+          title: 'Classement',
           tabBarIcon: LeaderboardIcon,
         }}
       />
@@ -123,7 +160,7 @@ function TabNavigator() {
         name="Trips"
         component={TripsScreen}
         options={{
-          title: 'Trips',
+          title: 'Trajets',
           tabBarIcon: TripsIcon,
         }}
       />
@@ -131,7 +168,7 @@ function TabNavigator() {
         name="Shop"
         component={ShopScreen}
         options={{
-          title: 'Shop',
+          title: 'Boutique',
           tabBarIcon: ShopIcon,
         }}
       />
@@ -168,7 +205,42 @@ function MainStack() {
       <Stack.Screen
         name="ValidatedJourneys"
         component={ValidatedJourneysScreen}
-        options={{title: 'Trajets valides'}}
+        options={{title: 'Trajets validés'}}
+      />
+      <Stack.Screen
+        name="ValidatedJourneyDetail"
+        component={ValidatedJourneyDetailScreen}
+        options={{title: 'Détails du trajet'}}
+      />
+      <Stack.Screen
+        name="PurchasedItems"
+        component={PurchasedItemsScreen}
+        options={{title: 'Mes achats'}}
+      />
+      <Stack.Screen
+        name="CO2History"
+        component={CO2HistoryScreen}
+        options={{title: 'Émissions CO₂'}}
+      />
+      <Stack.Screen
+        name="DistanceHistory"
+        component={DistanceHistoryScreen}
+        options={{title: 'Distance parcourue'}}
+      />
+      <Stack.Screen
+        name="BadgeDetail"
+        component={BadgeDetailScreen}
+        options={{title: 'Détails du badge'}}
+      />
+      <Stack.Screen
+        name="UserStats"
+        component={UserStatsScreen}
+        options={{title: 'Statistiques'}}
+      />
+      <Stack.Screen
+        name="TeamMembers"
+        component={TeamMembersScreen}
+        options={{title: 'Équipe'}}
       />
     </Stack.Navigator>
   );

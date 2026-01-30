@@ -10,12 +10,10 @@ import {Icon} from '@/components/ui';
 
 interface WelcomeScreenProps {
   onLoginPress: () => void;
-  onSignUpPress: () => void;
 }
 
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onLoginPress,
-  onSignUpPress,
 }) => {
   return (
     <View style={styles.container}>
@@ -57,20 +55,13 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           </View>
         </View>
 
-        {/* Boutons d'action */}
+        {/* Bouton d'action */}
         <View style={styles.buttonsContainer}>
           <TouchableOpacity
             style={styles.loginButton}
             onPress={onLoginPress}
             activeOpacity={0.8}>
             <Text style={styles.loginButtonText}>Se connecter</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.signUpButton}
-            onPress={onSignUpPress}
-            activeOpacity={0.8}>
-            <Text style={styles.signUpButtonText}>S'inscrire</Text>
           </TouchableOpacity>
         </View>
 
@@ -192,19 +183,6 @@ const styles = StyleSheet.create({
     color: '#1fa055',
     fontSize: 18,
     fontWeight: '700',
-  },
-  signUpButton: {
-    backgroundColor: 'transparent',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-  signUpButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
   },
   footerText: {
     marginTop: 30,

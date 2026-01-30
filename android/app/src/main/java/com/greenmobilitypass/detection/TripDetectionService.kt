@@ -90,7 +90,15 @@ class TripDetectionService : LifecycleService() {
         
         try {
             gpsTracker = GpsLocationTracker(applicationContext, stateMachine)
-            Log.d(TAG, "✅ GPS tracker initialized")
+            
+            // Setup GPS mode change listener for logging
+            gpsTracker?.onModeChangedListener = { mode, timestamp ->
+                val modeName = if (mode == GpsMode.HIGH_FREQUENCY) "HIGH_FREQUENCY" else "LOW_FREQUENCY"
+                notifyGpsEvent("gps_mode_changed", modeName, timestamp)
+                Log.d(TAG, "📡 GPS mode changed to: $modeName")
+            }
+            
+            Log.d(TAG, "✅ GPS tracker initialized (adaptive mode enabled)")
         } catch (e: Exception) {
             Log.e(TAG, "⚠️  GPS tracker init failed: ${e.message}")
         }
@@ -547,6 +555,10 @@ class TripDetectionService : LifecycleService() {
         }
         stopConfirmationRunnable = null
         isStopConfirmationPending = false
+        
+        // Force high frequency GPS when resuming movement after a stop
+        // This ensures we capture the resume point accurately
+        gpsTracker?.forceHighFrequency()
     }
 
     /**
@@ -556,7 +568,7 @@ class TripDetectionService : LifecycleService() {
         if (isTripConfirmed) {
             try {
                 gpsTracker?.startTracking()
-                Log.d(TAG, "📍 GPS tracking started (trip confirmed)")
+                Log.d(TAG, "📍 GPS tracking started (trip confirmed, adaptive mode)")
             } catch (e: Exception) {
                 Log.e(TAG, "⚠️ Error starting GPS: ${e.message}")
             }

@@ -125,11 +125,12 @@ class TripDetection {
   }
 
   /**
-   * Check permission status
+   * Check permission status for location, activity recognition, and notifications
    */
   async checkPermissions(): Promise<PermissionStatus> {
     if (Platform.OS !== 'android') {
       return {
+        location: false,
         activityRecognition: false,
         notifications: false,
         allGranted: false,

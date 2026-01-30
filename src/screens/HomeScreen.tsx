@@ -59,6 +59,7 @@ export default function HomeScreen(): JSX.Element {
   useFocusEffect(
     useCallback(() => {
       loadData();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []),
   );
 
@@ -88,7 +89,6 @@ export default function HomeScreen(): JSX.Element {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
-        fractionalSecondDigits: 3,
       });
       const timestampMs = now.getTime();
 
@@ -117,7 +117,6 @@ export default function HomeScreen(): JSX.Element {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
-        fractionalSecondDigits: 3,
       });
 
       console.log('[GPS Log]', data.event, data);
@@ -276,18 +275,13 @@ export default function HomeScreen(): JSX.Element {
   return (
     <ScrollView
       style={styles.container}
+      contentContainerStyle={styles.contentContainer}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }>
       {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.welcomeText}>Bienvenue,</Text>
-          <Text style={styles.username}>{user?.username || 'Utilisateur'}</Text>
-        </View>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <Text style={styles.logoutText}>Deconnexion</Text>
-        </TouchableOpacity>
+      <View style={styles.headerSection}>
+        <Text style={styles.headerTitle}>Accueil</Text>
       </View>
 
       {/* Detection Control */}
@@ -323,7 +317,7 @@ export default function HomeScreen(): JSX.Element {
           )}
 
           {/* DEBUG / DEMO controls (POC) */}
-          <View style={{height: 12}} />
+          <View style={styles.spacerMd} />
           <TouchableOpacity
             style={[
               styles.button,
@@ -346,7 +340,7 @@ export default function HomeScreen(): JSX.Element {
             </Text>
           </TouchableOpacity>
 
-          <View style={{height: 8}} />
+          <View style={styles.spacerSm} />
           <TouchableOpacity
             style={[styles.button, styles.startButton]}
             onPress={async () => {
@@ -427,7 +421,7 @@ export default function HomeScreen(): JSX.Element {
                 <View key={index} style={styles.logEntry}>
                   {isStart && (
                     <>
-                      <Text style={{color: '#4CAF50', fontWeight: 'bold'}}>
+                      <Text style={styles.logStart}>
                         🟢 GPS DÉBUT - {log.activity}
                       </Text>
                       <Text style={styles.logTime}>{log.formattedTime}</Text>
@@ -435,7 +429,7 @@ export default function HomeScreen(): JSX.Element {
                   )}
                   {isStop && (
                     <>
-                      <Text style={{color: '#FF9800', fontWeight: 'bold'}}>
+                      <Text style={styles.logStop}>
                         🔴 GPS ARRÊT - {log.activity}
                       </Text>
                       <Text style={styles.logTime}>{log.formattedTime}</Text>
@@ -443,9 +437,7 @@ export default function HomeScreen(): JSX.Element {
                   )}
                   {isStats && (
                     <>
-                      <Text style={{color: '#2196F3', fontWeight: 'bold'}}>
-                        📊 STATS GPS
-                      </Text>
+                      <Text style={styles.logStats}>📊 STATS GPS</Text>
                       <Text style={styles.logText}>
                         {log.isGpsBased
                           ? `✅ GPS-BASÉ: ${
@@ -531,16 +523,19 @@ export default function HomeScreen(): JSX.Element {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f8f9fa',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+  contentContainer: {
+    paddingTop: 55,
+  },
+  headerSection: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  headerTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#1a472a',
   },
   welcomeText: {
     fontSize: 14,
@@ -769,5 +764,23 @@ const styles = StyleSheet.create({
     color: '#888',
     marginTop: 2,
     fontFamily: 'monospace',
+  },
+  logStart: {
+    color: '#4CAF50',
+    fontWeight: 'bold',
+  },
+  logStop: {
+    color: '#FF9800',
+    fontWeight: 'bold',
+  },
+  logStats: {
+    color: '#2196F3',
+    fontWeight: 'bold',
+  },
+  spacerSm: {
+    height: 8,
+  },
+  spacerMd: {
+    height: 12,
   },
 });

@@ -3,22 +3,12 @@
  */
 
 import React, {useState} from 'react';
-import {WelcomeScreen, LoginModal, SignUpModal} from '@/components/auth';
+import {WelcomeScreen, LoginModal} from '@/components/auth';
 
 export default function AuthScreen(): JSX.Element {
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [showSignUpModal, setShowSignUpModal] = useState(false);
 
   const handleLoginPress = () => {
-    setShowLoginModal(true);
-  };
-
-  const handleSignUpPress = () => {
-    setShowSignUpModal(true);
-  };
-
-  const handleSignUpSuccess = () => {
-    // After successful signup, open the login modal
     setShowLoginModal(true);
   };
 
@@ -26,16 +16,10 @@ export default function AuthScreen(): JSX.Element {
     <>
       <WelcomeScreen
         onLoginPress={handleLoginPress}
-        onSignUpPress={handleSignUpPress}
       />
       <LoginModal
         visible={showLoginModal}
         onClose={() => setShowLoginModal(false)}
-      />
-      <SignUpModal
-        visible={showSignUpModal}
-        onClose={() => setShowSignUpModal(false)}
-        onSignUpSuccess={handleSignUpSuccess}
       />
     </>
   );

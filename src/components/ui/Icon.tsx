@@ -25,6 +25,10 @@ import {
   AlertCircle,
   AlertTriangle,
   HelpCircle,
+  Coins,
+  Gift,
+  ShoppingBag,
+  type LucideIcon,
 } from 'lucide-react-native';
 
 interface IconProps {
@@ -33,25 +37,27 @@ interface IconProps {
   color?: string;
 }
 
-const iconMap: Record<string, React.ComponentType<{size?: number; color?: string}>> = {
+const iconMap: Record<string, LucideIcon> = {
   // Navigation & Actions
-  'leaf': Leaf,
-  'bicycle': Bike,
-  'bus': Bus,
-  'train': Train,
-  'walk': PersonStanding,
-  'person': User,
+  leaf: Leaf,
+  bicycle: Bike,
+  bike: Bike,
+  bus: Bus,
+  train: Train,
+  walk: PersonStanding,
+  person: User,
   'person-outline': User,
-  'close': X,
+  close: X,
   'arrow-back': ArrowLeft,
   'arrow-forward': ArrowRight,
-  'checkmark': Check,
-  'sync': RefreshCw,
+  checkmark: Check,
+  sync: RefreshCw,
 
   // Form icons
   'at-outline': AtSign,
   'mail-outline': Mail,
   'lock-closed-outline': Lock,
+  lock: Lock,
   'eye-outline': Eye,
   'eye-off-outline': EyeOff,
   'keypad-outline': Keyboard,
@@ -61,9 +67,18 @@ const iconMap: Record<string, React.ComponentType<{size?: number; color?: string
   'alert-circle': AlertCircle,
   'warning-outline': AlertTriangle,
   'help-circle': HelpCircle,
+
+  // Shop icons
+  coins: Coins,
+  gift: Gift,
+  'shopping-bag': ShoppingBag,
 };
 
-export const Icon: React.FC<IconProps> = ({name, size = 24, color = '#000'}) => {
+export const Icon: React.FC<IconProps> = ({
+  name,
+  size = 24,
+  color = '#000',
+}) => {
   const IconComponent = iconMap[name];
 
   if (!IconComponent) {

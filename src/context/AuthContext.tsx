@@ -12,6 +12,7 @@ import React, {
 } from 'react';
 import {apiClient} from '../api/client';
 import {UserInfo} from '../api/types';
+import tripDetection from '../native/TripDetection';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -50,11 +51,24 @@ export function AuthProvider({children}: AuthProviderProps): JSX.Element {
     try {
       await apiClient.loadTokens();
       if (apiClient.isAuthenticated()) {
-        const userInfo = await apiClient.getMe();
         const currentUserId = apiClient.getUserId();
-        setUser(userInfo);
-        setUserId(currentUserId);
-        setIsAuthenticated(true);
+        if (currentUserId) {
+          const userProfile = await apiClient.getUserProfile(currentUserId);
+          // Convert UserProfile to UserInfo format
+          const userInfo: UserInfo = {
+            id: userProfile.id,
+            email: userProfile.email,
+            username: userProfile.username,
+            is_active: true,
+            team_id: userProfile.team_id,
+          };
+          setUser(userInfo);
+          setUserId(currentUserId);
+          setIsAuthenticated(true);
+          
+          // Start trip detection if already authenticated (permissions requested at app startup)
+          startTripDetection();
+        }
       }
     } catch (error) {
       console.log('Not authenticated or token expired');
@@ -66,15 +80,48 @@ export function AuthProvider({children}: AuthProviderProps): JSX.Element {
     }
   };
 
+  // Start trip detection after login (permissions already requested at app startup)
+  const startTripDetection = async () => {
+    try {
+      const permissions = await tripDetection.checkPermissions();
+      
+      if (permissions.allGranted) {
+        await tripDetection.startDetection();
+        console.log('✅ Trip detection started');
+      } else {
+        // Try to start anyway - some features might work with partial permissions
+        console.warn('⚠️ Not all permissions granted, attempting to start detection anyway');
+        console.log('   Location:', permissions.location ? '✅' : '❌');
+        console.log('   Activity:', permissions.activityRecognition ? '✅' : '❌');
+        console.log('   Notifications:', permissions.notifications ? '✅' : '❌');
+        await tripDetection.startDetection();
+      }
+    } catch (error) {
+      console.error('❌ Failed to start trip detection:', error);
+    }
+  };
+
   const login = useCallback(async (username: string, password: string) => {
     setIsLoading(true);
     try {
       await apiClient.login(username, password);
-      const userInfo = await apiClient.getMe();
       const currentUserId = apiClient.getUserId();
-      setUser(userInfo);
-      setUserId(currentUserId);
-      setIsAuthenticated(true);
+      if (currentUserId) {
+        const userProfile = await apiClient.getUserProfile(currentUserId);
+        const userInfo: UserInfo = {
+          id: userProfile.id,
+          email: userProfile.email,
+          username: userProfile.username,
+          is_active: true,
+          team_id: userProfile.team_id,
+        };
+        setUser(userInfo);
+        setUserId(currentUserId);
+        setIsAuthenticated(true);
+        
+        // Start trip detection after successful login (permissions requested at app startup)
+        startTripDetection();
+      }
     } finally {
       setIsLoading(false);
     }
@@ -85,11 +132,20 @@ export function AuthProvider({children}: AuthProviderProps): JSX.Element {
       setIsLoading(true);
       try {
         await apiClient.register({username, email, password});
-        const userInfo = await apiClient.getMe();
         const currentUserId = apiClient.getUserId();
-        setUser(userInfo);
-        setUserId(currentUserId);
-        setIsAuthenticated(true);
+        if (currentUserId) {
+          const userProfile = await apiClient.getUserProfile(currentUserId);
+          const userInfo: UserInfo = {
+            id: userProfile.id,
+            email: userProfile.email,
+            username: userProfile.username,
+            is_active: true,
+            team_id: userProfile.team_id,
+          };
+          setUser(userInfo);
+          setUserId(currentUserId);
+          setIsAuthenticated(true);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -98,6 +154,14 @@ export function AuthProvider({children}: AuthProviderProps): JSX.Element {
   );
 
   const logout = useCallback(async () => {
+    // Stop trip detection when logging out
+    try {
+      await tripDetection.stopDetection();
+      console.log('Trip detection stopped on logout');
+    } catch (error) {
+      console.error('Failed to stop trip detection:', error);
+    }
+    
     await apiClient.logout();
     setUser(null);
     setUserId(null);
@@ -106,8 +170,18 @@ export function AuthProvider({children}: AuthProviderProps): JSX.Element {
 
   const refreshUser = useCallback(async () => {
     try {
-      const userInfo = await apiClient.getMe();
-      setUser(userInfo);
+      const currentUserId = apiClient.getUserId();
+      if (currentUserId) {
+        const userProfile = await apiClient.getUserProfile(currentUserId);
+        const userInfo: UserInfo = {
+          id: userProfile.id,
+          email: userProfile.email,
+          username: userProfile.username,
+          is_active: true,
+          team_id: userProfile.team_id,
+        };
+        setUser(userInfo);
+      }
     } catch (error) {
       console.error('Failed to refresh user:', error);
     }
@@ -116,11 +190,20 @@ export function AuthProvider({children}: AuthProviderProps): JSX.Element {
   const setIsLoggedIn = useCallback(async (value: boolean) => {
     if (value) {
       try {
-        const userInfo = await apiClient.getMe();
         const currentUserId = apiClient.getUserId();
-        setUser(userInfo);
-        setUserId(currentUserId);
-        setIsAuthenticated(true);
+        if (currentUserId) {
+          const userProfile = await apiClient.getUserProfile(currentUserId);
+          const userInfo: UserInfo = {
+            id: userProfile.id,
+            email: userProfile.email,
+            username: userProfile.username,
+            is_active: true,
+            team_id: userProfile.team_id,
+          };
+          setUser(userInfo);
+          setUserId(currentUserId);
+          setIsAuthenticated(true);
+        }
       } catch (error) {
         console.error('Failed to get user info:', error);
       }

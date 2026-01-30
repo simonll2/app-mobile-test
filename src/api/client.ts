@@ -7,10 +7,24 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   TokenResponse,
   UserInfo,
+  UserProfile,
+  Company,
+  Team,
+  TeamListItem,
+  TeamCreate,
+  TeamCreateResponse,
+  UserBadge,
+  UserStats,
+  ValidatedJourney,
   UserRegister,
   UserStatistics,
   JourneyCreate,
   JourneyRead,
+  LeaderboardUser,
+  LeaderboardTeam,
+  ShopItem,
+  PurchasedItem,
+  Wallet,
 } from './types';
 import {
   API_BASE_URL as ENV_API_BASE_URL,
@@ -24,7 +38,7 @@ const REFRESH_TOKEN_KEY = ENV_REFRESH_TOKEN_KEY || '@GMP_refresh_token';
 const USER_ID_KEY = '@GMP_user_id';
 
 // API base URL - now loaded from .env
-const API_BASE_URL = ENV_API_BASE_URL || 'http://10.0.2.2:8000';
+const API_BASE_URL = ENV_API_BASE_URL || 'https://capitulatory-insinuatingly-dayna.ngrok-free.dev';
 
 class ApiClient {
   private baseUrl: string;
@@ -258,6 +272,95 @@ class ApiClient {
     return this.request<UserInfo>('/me');
   }
 
+  // ==================== USER ENDPOINTS ====================
+
+  /**
+   * Get user profile by ID
+   */
+  async getUserProfile(userId: number): Promise<UserProfile> {
+    return this.request<UserProfile>(`/users/${userId}`);
+  }
+
+  /**
+   * Get company by ID
+   */
+  async getCompany(companyId: number): Promise<Company> {
+    return this.request<Company>(`/company/${companyId}`);
+  }
+
+  /**
+   * Get team by ID
+   */
+  async getTeam(teamId: number): Promise<Team> {
+    return this.request<Team>(`/teams/${teamId}`);
+  }
+
+  /**
+   * Get team members (uses leaderboard endpoint)
+   */
+  async getTeamMembers(teamId: number, limit: number = 50): Promise<any[]> {
+    const url = `/leaderboard/team/users?team_id=${teamId}&limit=${limit}`;
+    console.log('[API] getTeamMembers URL:', url);
+    return this.request<any[]>(url);
+  }
+
+  /**
+   * Get all teams
+   */
+  async getAllTeams(): Promise<TeamListItem[]> {
+    return this.request<TeamListItem[]>('/teams');
+  }
+
+  /**
+   * Create a new team
+   */
+  async createTeam(data: TeamCreate): Promise<TeamCreateResponse> {
+    return this.request<TeamCreateResponse>('/teams', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Join a team
+   */
+  async joinTeam(teamId: number, code?: string): Promise<void> {
+    return this.request<void>(`/teams/${teamId}/join`, {
+      method: 'POST',
+      body: JSON.stringify({code: code || ''}),
+    });
+  }
+
+  /**
+   * Leave current team
+   */
+  async leaveTeam(userId: number): Promise<void> {
+    return this.request<void>(`/teams/${userId}/leave`, {
+      method: 'DELETE',
+    });
+  }
+
+  /**
+   * Get user badges
+   */
+  async getUserBadges(userId: number): Promise<UserBadge[]> {
+    return this.request<UserBadge[]>(`/badges/user/${userId}`);
+  }
+
+  /**
+   * Get user stats
+   */
+  async getUserStats(userId: number): Promise<UserStats> {
+    return this.request<UserStats>(`/users/${userId}/stats`);
+  }
+
+  /**
+   * Get user validated journeys
+   */
+  async getUserValidatedJourneys(userId: number): Promise<ValidatedJourney[]> {
+    return this.request<ValidatedJourney[]>(`/journey/${userId}/validated`);
+  }
+
   // ==================== JOURNEY ENDPOINTS ====================
 
   /**
@@ -277,11 +380,76 @@ class ApiClient {
     return this.request<JourneyRead[]>('/journey/validated');
   }
 
+  // ==================== LEADERBOARD ENDPOINTS ====================
+
   /**
-   * Get user statistics
+   * Get global leaderboard (company users)
    */
-  async getStatistics(): Promise<UserStatistics> {
-    return this.request<UserStatistics>('/journey/statistics/me');
+  async getGlobalLeaderboard(
+    limit: number = 50,
+    offset: number = 0,
+  ): Promise<LeaderboardUser[]> {
+    return this.request<LeaderboardUser[]>(
+      `/leaderboard/company/users?limit=${limit}&offset=${offset}`,
+    );
+  }
+
+  /**
+   * Get team leaderboard (company teams)
+   */
+  async getTeamLeaderboard(
+    limit: number = 50,
+    offset: number = 0,
+  ): Promise<LeaderboardTeam[]> {
+    return this.request<LeaderboardTeam[]>(
+      `/leaderboard/company/teams?limit=${limit}&offset=${offset}`,
+    );
+  }
+
+  /**
+   * Get team members leaderboard (users in the current user's team)
+   */
+  async getTeamMembersLeaderboard(
+    limit: number = 50,
+    offset: number = 0,
+  ): Promise<LeaderboardUser[]> {
+    return this.request<LeaderboardUser[]>(
+      `/leaderboard/team/users?limit=${limit}&offset=${offset}`,
+    );
+  }
+
+  // ==================== SHOP ENDPOINTS ====================
+
+  /**
+   * Get all shop items
+   */
+  async getShopItems(): Promise<ShopItem[]> {
+    return this.request<ShopItem[]>('/shop/items');
+  }
+
+  /**
+   * Purchase a shop item
+   */
+  async purchaseItem(itemId: number): Promise<PurchasedItem> {
+    return this.request<PurchasedItem>(`/shop/purchase/${itemId}`, {
+      method: 'POST',
+    });
+  }
+
+  /**
+   * Get user's purchased items
+   */
+  async getPurchasedItems(userId: number): Promise<PurchasedItem[]> {
+    return this.request<PurchasedItem[]>(`/shop/purchases/${userId}`);
+  }
+
+  // ==================== WALLET ENDPOINTS ====================
+
+  /**
+   * Get user's wallet (coins balance)
+   */
+  async getWallet(userId: number): Promise<Wallet> {
+    return this.request<Wallet>(`/wallets/${userId}`);
   }
 }
 

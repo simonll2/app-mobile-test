@@ -6,7 +6,6 @@ import {
   Animated,
   Dimensions,
   Keyboard,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -299,9 +298,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
       visible={visible}
       onRequestClose={handleClose}
       statusBarTranslucent>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.overlay}>
+      <View style={styles.overlay}>
         <Animated.View style={[styles.backdrop, {opacity: backdropAnim}]}>
           <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
         </Animated.View>
@@ -494,14 +491,14 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
                           key={index}
                           style={[
                             styles.codeBox,
-                            companyCode[index] && styles.codeBoxFilled,
+                            Boolean(companyCode[index]) && styles.codeBoxFilled,
                             companyCode.length === index &&
                               styles.codeBoxActive,
                           ]}>
                           <Text
                             style={[
                               styles.codeBoxText,
-                              companyCode[index] && styles.codeBoxTextFilled,
+                              Boolean(companyCode[index]) && styles.codeBoxTextFilled,
                             ]}>
                             {companyCode[index] || ''}
                           </Text>
@@ -627,7 +624,7 @@ export const SignUpModal: React.FC<SignUpModalProps> = ({
             </TouchableOpacity>
           </View>
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };
