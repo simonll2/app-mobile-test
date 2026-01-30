@@ -259,7 +259,7 @@ export default function ValidatedJourneysScreen(): JSX.Element {
       <View style={styles.placesContainer}>
         <MapPin size={14} color="#999" />
         <Text style={styles.placeText} numberOfLines={1}>
-          {item.place_departure} → {item.place_arrival}
+          Début du trajet → Fin du trajet
         </Text>
         <ChevronRight size={18} color="#ccc" style={{marginLeft: 'auto'}} />
       </View>
