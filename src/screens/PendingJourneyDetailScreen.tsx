@@ -34,7 +34,6 @@ import {
 import tripDetection from '../native/TripDetection';
 import {apiClient} from '../api/client';
 import {LocalJourney, TransportType, JourneyCreate} from '../api/types';
-import {reverseGeocode} from '../utils/geocoding';
 
 type RootStackParamList = {
   PendingJourneyDetail: {journeyId: number};
@@ -95,7 +94,6 @@ export default function PendingJourneyDetailScreen(): JSX.Element {
   const [distanceKm, setDistanceKm] = useState('');
   const [placeDeparture, setPlaceDeparture] = useState('');
   const [placeArrival, setPlaceArrival] = useState('');
-  const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
 
   useEffect(() => {
     loadJourney();
@@ -120,32 +118,11 @@ export default function PendingJourneyDetailScreen(): JSX.Element {
     }
   };
 
-  const loadAddressesFromCoordinates = async (data: LocalJourney) => {
-    setIsLoadingAddresses(true);
-    
-    try {
-      // Geocode departure location
-      if (data.startLatitude && data.startLongitude) {
-        const departureResult = await reverseGeocode(data.startLatitude, data.startLongitude);
-        setPlaceDeparture(departureResult.shortAddress);
-      } else {
-        setPlaceDeparture(data.placeDeparture || 'Lieu de départ');
-      }
-
-      // Geocode arrival location
-      if (data.endLatitude && data.endLongitude) {
-        const arrivalResult = await reverseGeocode(data.endLatitude, data.endLongitude);
-        setPlaceArrival(arrivalResult.shortAddress);
-      } else {
-        setPlaceArrival(data.placeArrival || "Lieu d'arrivée");
-      }
-    } catch (error) {
-      console.warn('Failed to load addresses:', error);
-      setPlaceDeparture(data.placeDeparture || 'Lieu de départ');
-      setPlaceArrival(data.placeArrival || "Lieu d'arrivée");
-    } finally {
-      setIsLoadingAddresses(false);
-    }
+  const loadAddressesFromCoordinates = async (_data: LocalJourney) => {
+    // V1 Privacy: Ne plus afficher d'adresses réelles
+    // Affichage de libellés neutres uniquement
+    setPlaceDeparture('Début du trajet');
+    setPlaceArrival('Fin du trajet');
   };
 
   const handleValidateAndSend = async () => {
@@ -165,21 +142,9 @@ export default function PendingJourneyDetailScreen(): JSX.Element {
         finalDistance = 0.5; // Valeur par défaut pour test
       }
 
-      let finalPlaceDeparture = placeDeparture.trim();
-      if (!finalPlaceDeparture) {
-        console.warn(
-          'Lieu de départ vide, utilisation de la valeur par défaut',
-        );
-        finalPlaceDeparture = 'Départ auto-détecté';
-      }
-
-      let finalPlaceArrival = placeArrival.trim();
-      if (!finalPlaceArrival) {
-        console.warn(
-          "Lieu d'arrivée vide, utilisation de la valeur par défaut",
-        );
-        finalPlaceArrival = 'Arrivée auto-détectée';
-      }
+      // V1 Privacy: Forcer l'anonymisation - ne jamais envoyer d'adresses réelles
+      const finalPlaceDeparture = 'Début du trajet';
+      const finalPlaceArrival = 'Fin du trajet';
 
       // Validation des timestamps avec valeurs par défaut
       let timeDepartureISO: string;
@@ -487,17 +452,11 @@ export default function PendingJourneyDetailScreen(): JSX.Element {
                   <Navigation size={18} color="#2196F3" />
                 </View>
                 <Text style={styles.inputLabel}>Lieu de départ</Text>
-                {isLoadingAddresses && (
-                  <ActivityIndicator size="small" color="#2196F3" style={{marginLeft: 8}} />
-                )}
               </View>
               <TextInput
-                style={styles.input}
+                style={[styles.input, styles.inputReadOnly]}
                 value={placeDeparture}
-                onChangeText={setPlaceDeparture}
-                placeholder={isLoadingAddresses ? "Recherche de l'adresse..." : "Ex: Domicile, Gare de Lyon..."}
-                placeholderTextColor="#aaa"
-                editable={!isLoadingAddresses}
+                editable={false}
               />
             </View>
 
@@ -512,17 +471,11 @@ export default function PendingJourneyDetailScreen(): JSX.Element {
                   <Target size={18} color="#FF9800" />
                 </View>
                 <Text style={styles.inputLabel}>Lieu d'arrivée</Text>
-                {isLoadingAddresses && (
-                  <ActivityIndicator size="small" color="#FF9800" style={{marginLeft: 8}} />
-                )}
               </View>
               <TextInput
-                style={styles.input}
+                style={[styles.input, styles.inputReadOnly]}
                 value={placeArrival}
-                onChangeText={setPlaceArrival}
-                placeholder={isLoadingAddresses ? "Recherche de l'adresse..." : "Ex: Bureau, Centre commercial..."}
-                placeholderTextColor="#aaa"
-                editable={!isLoadingAddresses}
+                editable={false}
               />
             </View>
           </View>
@@ -828,6 +781,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 16,
     color: '#1a1a1a',
+  },
+  inputReadOnly: {
+    backgroundColor: '#f0f0f0',
+    color: '#666',
   },
   bottomSpacer: {
     height: 20,

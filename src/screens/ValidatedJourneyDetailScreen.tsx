@@ -182,7 +182,7 @@ export default function ValidatedJourneyDetailScreen(): JSX.Element {
             </View>
             <View style={styles.timelineContent}>
               <Text style={styles.timelineLabel}>Départ</Text>
-              <Text style={styles.timelinePlace}>{journey.place_departure}</Text>
+              <Text style={styles.timelinePlace}>Début du trajet</Text>
               <View style={styles.timeRow}>
                 <Clock size={14} color="#666" />
                 <Text style={styles.timeText}>{departureDateTime.time}</Text>
@@ -199,7 +199,7 @@ export default function ValidatedJourneyDetailScreen(): JSX.Element {
             </View>
             <View style={styles.timelineContent}>
               <Text style={styles.timelineLabel}>Arrivée</Text>
-              <Text style={styles.timelinePlace}>{journey.place_arrival}</Text>
+              <Text style={styles.timelinePlace}>Fin du trajet</Text>
               <View style={styles.timeRow}>
                 <Clock size={14} color="#666" />
                 <Text style={styles.timeText}>{arrivalDateTime.time}</Text>
